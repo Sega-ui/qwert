@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
+<title>Söz Overlay Ayarları</title>
+<link rel="stylesheet" href="view.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #16161c; color: #e8e8ee; font: 14px "Segoe UI", system-ui, sans-serif; }
+  #app { display: flex; flex-direction: column; height: 100%; }
+  #pvbox { flex: none; height: 300px; padding: 16px 20px; position: relative; overflow: hidden; display: flex; align-items: center;
+    background: radial-gradient(60% 90% at 15% 20%, #5b4b8a 0%, transparent 70%), radial-gradient(50% 80% at 85% 80%, #c06c84 0%, transparent 70%), linear-gradient(135deg, #1f3b57, #2d2a52); }
+  #pv { width: 100%; height: 100%; max-width: 680px; margin: 0 auto; }
+  #pvbtn { position: absolute; right: 14px; top: 12px; }
+  #main { flex: 1; display: flex; min-height: 0; border-top: 1px solid #2b2b35; }
+  #tabs { flex: none; width: 168px; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid #2b2b35; background: #1a1a21; overflow-y: auto; }
+  #tabs button { text-align: left; border: 0; background: transparent; color: #b9b9c6; padding: 9px 12px; border-radius: 8px; font: inherit; cursor: pointer; }
+  #tabs button:hover { background: #24242d; color: #fff; }
+  #tabs button.on { background: #2e2e3a; color: #fff; }
+  #pane { flex: 1; overflow: auto; padding: 18px 26px 40px; }
+  h3 { margin: 18px 0 8px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: #8f8fa3; font-weight: 600; }
+  h3:first-child { margin-top: 0; }
+  .row { display: grid; grid-template-columns: 200px 1fr 64px; align-items: center; gap: 12px; padding: 7px 0; }
+  .row .lab { color: #d0d0da; }
+  .row input[type=range] { width: 100%; accent-color: #8ab4ff; }
+  .row input[type=checkbox] { width: 18px; height: 18px; accent-color: #8ab4ff; justify-self: start; }
+  .row input[type=color] { width: 44px; height: 28px; border: 0; background: none; padding: 0; justify-self: start; }
+  .row select, .row input[type=text] { grid-column: 2 / 4; background: #24242d; color: #fff; border: 1px solid #33333f; border-radius: 8px; padding: 6px 8px; font: inherit; }
+  .row .val { color: #8f8fa3; text-align: right; font-variant-numeric: tabular-nums; }
+  .note { color: #8f8fa3; line-height: 1.5; margin: 6px 0 12px; }
+  .btn { background: #2e2e3a; color: #fff; border: 1px solid #3a3a48; border-radius: 8px; padding: 7px 14px; font: inherit; cursor: pointer; margin: 4px 8px 4px 0; }
+  .btn:hover { background: #3a3a48; }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn.sm { padding: 4px 10px; margin: 0; }
+  .btn.pri { background: #8ab4ff; color: #0b1220; border-color: #8ab4ff; font-weight: 600; }
+  .btn.danger:hover { background: #5a2530; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+  .card { background: #1f1f27; border: 1px solid #2b2b35; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+  .card b { font-size: 15px; }
+  .card .sub { color: #8f8fa3; font-size: 12px; min-height: 30px; }
+  .card .acts { display: flex; gap: 6px; margin-top: 6px; }
+  .slot { display: grid; grid-template-columns: 24px 1fr auto auto auto; gap: 8px; align-items: center; padding: 4px 0; }
+  .slot .n { color: #8f8fa3; text-align: right; }
+  .slot input { background: #24242d; color: #fff; border: 1px solid #33333f; border-radius: 8px; padding: 5px 8px; font: inherit; }
+  textarea { width: 100%; height: 76px; background: #24242d; color: #fff; border: 1px solid #33333f; border-radius: 8px; padding: 8px; font: 12px Consolas, monospace; resize: vertical; }
+  .err { color: #ff8a8a; min-height: 18px; margin: 4px 0; }
+  #toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: #000c; padding: 8px 16px; border-radius: 999px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 999; }
+  #toast.on { opacity: 1; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #8ab4ff; outline-offset: 2px; }
+
+  body.layout-mode #pv .lv-cover,
+  body.layout-mode #pv .lv-lyr,
+  body.layout-mode #pv .lv-now,
+  body.layout-mode #pv .lv-nxt,
+  body.layout-mode #pv .lv-ctl,
+  body.layout-mode #pv .lv-prog { outline: 1px dashed rgba(138,180,255,.6); outline-offset: 2px; cursor: move; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="pvbox"><div id="pv"></div><button class="btn sm" id="pvbtn">Yeni örnek</button></div>
+  <div id="main"><nav id="tabs"></nav><section id="pane"></section></div>
+</div>
+<div id="toast"></div>
+<script src="defaults.js"></script>
+<script src="presets.js"></script>
+<script src="view.js"></script>
+<script>
+window.addEventListener('error', (e) => { try { api.logError('settings:error', (e.error && e.error.stack) || e.message); } catch {} });
+window.addEventListener('unhandledrejection', (e) => { try { api.logError('settings:unhandledrejection', (e.reason && e.reason.stack) || String(e.reason)); } catch {} });
+
+const D = SLO.DEFAULTS;
+const $ = (s, r) => (r || document).querySelector(s);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+let cfg = { ...D };
+let toastT;
+function toast(t) { const n = $('#toast'); n.textContent = t; n.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => n.classList.remove('on'), 2200); }
+
+const SAMPLES = [
+  { title: 'Gece Yolculuğu', artist: 'Örnek Sanatçı', lines: ['Şehir ışıkları uzakta kalırken', 'Camdan yansıyan yüzüm yabancı', 'Her dönemeçte bir ihtimal saklı', 'Sabaha kadar dur deme bana', 'Bu yol bizi bir yere çıkaracak', 'Sesini kıs ama bırakma elimi'] },
+  { title: 'Summer Static', artist: 'Sample Artist', lines: ['Radio hums a quiet song', 'Sunlight spilling on the floor', 'We were always meant to stay', 'Just a little while more', 'Let the evening carry on', 'Dancing in the afterglow'] },
+  { title: 'Kıyıda', artist: 'Demo Grubu', lines: ['Dalgalar yazıyor adını kuma', 'Rüzgâr alıp götürüyor her harfi', 'Ben yine de yazıyorum durmadan', 'Belki bir gün denize ulaşır', 'Sen de bir yerlerde duyarsın beni', 'Gün batımı kapanırken perdeyi'] },
+];
+let sampleIdx = -1, demoId = 0, demoPos = 0, demoPeriod = 1000, demoSample = null;
+const view = LyricsView.create($('#pv'), { localHover: true, ignoreHoverAll: true, onControl: (a) => { if (a === 'next' || a === 'previous') startDemo(); } });
+const _sc = view.setConfig;
+view.setConfig = (c) => { _sc(c); const pv = $('#pv'); pv.style.height = c.lyrics ? '100%' : '92px'; pv.style.maxWidth = c.lyrics ? '680px' : '420px'; };
+function makeCover(hue) {
+  const c = document.createElement('canvas'); c.width = c.height = 160;
+  const x = c.getContext('2d');
+  const gr = x.createLinearGradient(0, 0, 160, 160);
+  gr.addColorStop(0, 'hsl(' + hue + ' 75% 58%)'); gr.addColorStop(1, 'hsl(' + ((hue + 60) % 360) + ' 70% 32%)');
+  x.fillStyle = gr; x.fillRect(0, 0, 160, 160);
+  x.fillStyle = 'rgba(255,255,255,.18)'; x.beginPath(); x.arc(110, 52, 34, 0, 7); x.fill();
+  return c.toDataURL('image/png');
+}
+function startDemo() {
+  sampleIdx = (sampleIdx + 1) % SAMPLES.length;
+  demoSample = SAMPLES[sampleIdx];
+  const id = 'demo' + (++demoId);
+  const lines = demoSample.lines.map((text, i) => ({ t: 1000 + i * 3200, text }));
+  demoPeriod = 1000 + lines.length * 3200; demoPos = 0;
+  view.setPlayback({ id, title: demoSample.title, artist: demoSample.artist, duration: 200000, progress: 0, playing: true });
+  view.setLines(lines);
+  view.setCoverFor(id, makeCover(Math.floor(Math.random() * 360)));
+  view.setNext({ title: 'Sıradaki Örnek Şarkı', artist: 'Demo' });
+}
+setInterval(() => {
+  const p = view.getPlayback();
+  if (!p || !p.playing) return;
+  demoPos = (demoPos + 250) % demoPeriod;
+  view.setPlayback({ ...p, progress: demoPos });
+}, 250);
+$('#pvbtn').onclick = startDemo;
+
+const ctl = [];
+const pane = $('#pane');
+function set(k, v) { cfg[k] = v; view.setConfig(cfg); api.setCfg({ [k]: v }); refresh(); }
+function setLive(k, v) { cfg[k] = v; view.setConfig(cfg); refresh(); }
+function refresh() {
+  for (const c of ctl) {
+    const { it, inp, out, row } = c, v = cfg[it.k];
+    if (it.t === 'check') inp.checked = !!v; else inp.value = v;
+    if (out) out.textContent = v + (it.unit || '');
+    row.style.display = !it.show || it.show(cfg) ? '' : 'none';
+  }
+}
+function build(items) {
+  pane.innerHTML = ''; ctl.length = 0;
+  for (const it of items) {
+    if (it.t === 'h') { pane.append(el('h3', null, it.text)); continue; }
+    if (it.t === 'note') { pane.append(el('p', 'note', it.text)); continue; }
+    if (it.t === 'custom') { pane.append(it.build()); continue; }
+    if (it.t === 'button') { const b = el('button', 'btn' + (it.cls ? ' ' + it.cls : ''), it.label); b.onclick = it.fn; pane.append(b); continue; }
+    const row = el('div', 'row'); row.append(el('label', 'lab', it.label));
+    let inp, out = null;
+    if (it.t === 'range') {
+      inp = el('input'); inp.type = 'range'; inp.min = it.min; inp.max = it.max; inp.step = it.step || 1;
+      out = el('span', 'val'); inp.oninput = () => set(it.k, Number(inp.value));
+    } else if (it.t === 'select') {
+      inp = el('select');
+      it.opts.forEach(([v, l]) => { const o = el('option', null, l); o.value = v; if (it.font) o.style.fontFamily = '"' + v + '"'; inp.append(o); });
+      inp.onchange = () => set(it.k, typeof D[it.k] === 'number' ? Number(inp.value) : inp.value);
+    } else if (it.t === 'check') {
+      inp = el('input'); inp.type = 'checkbox'; inp.onchange = () => set(it.k, inp.checked ? 1 : 0);
+    } else if (it.t === 'color') {
+      inp = el('input'); inp.type = 'color'; inp.oninput = () => set(it.k, inp.value);
+    }
+    row.append(inp); if (out) row.append(out);
+    pane.append(row); ctl.push({ it, row, inp, out });
+  }
+  refresh();
+}
+function applyData(data) {
+  const clean = SLO.sanitize(data);
+  Object.assign(cfg, clean);
+  view.setConfig(cfg); api.setCfg(clean); refresh();
+}
+const base = () => SLO.pick(D, SLO.PRESET_KEYS);
+
+function importBox() {
+  const box = el('div');
+  box.append(el('h3', null, 'Kod ile içe aktar'));
+  const ta = el('textarea'); ta.placeholder = 'SLO1:… ile başlayan tasarım kodunu buraya yapıştır';
+  const err = el('div', 'err');
+  const paste = el('button', 'btn', 'Panodan yapıştır');
+  paste.onclick = async () => { ta.value = await api.clipboardRead(); };
+  const go = el('button', 'btn pri', 'İçe aktar');
+  go.onclick = () => {
+    const d = SLO.decode(ta.value);
+    if (!d) { err.textContent = 'Geçersiz kod.'; return; }
+    err.textContent = ''; applyData({ ...base(), ...d }); toast('Tasarım uygulandı');
+  };
+  box.append(ta, err, paste, go);
+  return box;
+}
+function cardFor(t) {
+  const c = el('div', 'card');
+  c.append(el('b', null, t.name), el('span', 'sub', t.desc || ''));
+  const acts = el('div', 'acts');
+  const tryB = el('button', 'btn sm pri', 'Dene'); tryB.onclick = () => { applyData({ ...base(), ...t.data }); toast(t.name + ' uygulandı'); };
+  const cp = el('button', 'btn sm', 'Kodu kopyala');
+  cp.onclick = async () => { await api.clipboardWrite(SLO.encode({ ...base(), ...t.data })); toast('Kod panoya kopyalandı'); };
+  acts.append(tryB, cp); c.append(acts);
+  return c;
+}
+function presetsPane() {
+  const box = el('div');
+  box.append(el('h3', null, 'Hazır şablonlar'));
+  const grid = el('div', 'grid'); PRESETS.TEMPLATES.forEach((t) => grid.append(cardFor(t))); box.append(grid);
+  box.append(el('h3', null, 'Kendi profillerin (12 yuva)'));
+  for (let i = 0; i < 12; i++) {
+    const s = cfg.presets[i], row = el('div', 'slot');
+    row.append(el('span', 'n', String(i + 1)));
+    const name = el('input'); name.type = 'text'; name.maxLength = 24; name.placeholder = 'Boş yuva'; name.value = s ? s.name : '';
+    const save = el('button', 'btn sm', 'Kaydet'), load = el('button', 'btn sm', 'Yükle'), del = el('button', 'btn sm danger', 'Sil');
+    load.disabled = del.disabled = !s;
+    save.onclick = () => {
+      cfg.presets[i] = { name: name.value.trim() || 'Profil ' + (i + 1), data: SLO.pick(cfg, SLO.PRESET_KEYS) };
+      api.setCfg({ presets: cfg.presets }); toast('Yuva ' + (i + 1) + ' kaydedildi'); showTab(cur);
+    };
+    load.onclick = () => { applyData({ ...base(), ...cfg.presets[i].data }); toast('Yuva ' + (i + 1) + ' yüklendi'); };
+    del.onclick = () => { cfg.presets[i] = null; api.setCfg({ presets: cfg.presets }); showTab(cur); };
+    row.append(name, save, load, del); box.append(row);
+  }
+  box.append(el('h3', null, 'Dışa aktar'));
+  box.append(el('p', 'note', 'Şu anki tasarımını kod olarak kopyala; uygulamaya yapıştırarak kullanabilirsin.'));
+  const ex = el('button', 'btn pri', 'Tasarım kodunu kopyala');
+  ex.onclick = async () => { await api.clipboardWrite(SLO.encode(SLO.pick(cfg, SLO.PRESET_KEYS))); toast('Kod panoya kopyalandı'); };
+  box.append(ex, importBox());
+  return box;
+}
+function communityPane() {
+  const box = el('div');
+  box.append(el('p', 'note', 'Hazır galeri tasarımları. Beğendiğini dene, kodunu kopyala, arkadaşlarınla paylaş.'));
+  box.append(el('h3', null, 'Galeri'));
+  const grid = el('div', 'grid'); PRESETS.GALLERY.forEach((t) => grid.append(cardFor(t))); box.append(grid);
+  box.append(importBox());
+  return box;
+}
+function advancedExtras() {
+  const box = el('div');
+  const reset = el('button', 'btn danger', 'Tüm ayarları varsayılana döndür');
+  reset.onclick = async () => {
+    if (!confirm('Tüm ayarlar varsayılana dönsün mü? (Kayıtlı profillerin silinmez.)')) return;
+    cfg = await api.resetCfg(); view.setConfig(cfg); refresh(); toast('Ayarlar sıfırlandı');
+  };
+  const rw = el('button', 'btn', 'Overlay konumunu ve boyutunu sıfırla'); rw.onclick = () => { api.resetWindow(); toast('Konum sıfırlandı'); };
+  const dd = el('button', 'btn', 'Veri klasörünü aç'); dd.onclick = () => api.openDataDir();
+  const logBtn = el('button', 'btn', 'Hata günlüğünü aç'); logBtn.onclick = () => api.openLog();
+  box.append(reset, rw, dd, logBtn);
+  return box;
+}
+
+/* ============ Yerleşim ============ */
+const WIDGET_KEYS = {
+  text: { x: 'textX', y: 'textY', z: 'lyrZ', w: 'lyrW', h: 'lyrH', size: 'size', align: true },
+  cover: { x: 'coverX', y: 'coverY', z: 'coverZ', w: 'coverW', h: 'coverH' },
+  now: { x: 'nowX', y: 'nowY', z: 'nowZ', w: 'nowW', h: 'nowH', scale: 'nowScale' },
+  next: { x: 'nextX', y: 'nextY', z: 'nextZ', w: 'nextW', h: 'nextH', scale: 'nextScale' },
+  ctl: { x: 'ctlX', y: 'ctlY', z: 'ctlZ', scale: 'ctlScale' },
+  prog: { x: 'progX', y: 'progY', z: 'progZ', w: 'progW', h: 'progH', orient: true },
+};
+let layoutCurrent = 'text';
+
+function layoutAddRange(container, k, label, min, max, step, unit) {
+  const row = el('div', 'row');
+  row.append(el('label', 'lab', label));
+  const inp = el('input'); inp.type = 'range';
+  inp.min = min; inp.max = max; inp.step = step || 1;
+  inp.oninput = () => set(k, Number(inp.value));
+  const out = el('span', 'val');
+  row.append(inp, out);
+  container.append(row);
+  ctl.push({ it: { t: 'range', k, unit }, row, inp, out });
+}
+
+function layoutAddSelect(container, k, label, opts) {
+  const row = el('div', 'row');
+  row.append(el('label', 'lab', label));
+  const inp = el('select');
+  opts.forEach(([v, l]) => { const o = el('option', null, l); o.value = v; inp.append(o); });
+  inp.onchange = () => set(k, inp.value);
+  row.append(inp);
+  container.append(row);
+  ctl.push({ it: { t: 'select', k }, row, inp, out: null });
+}
+
+function layoutPane() {
+  const box = el('div');
+  box.append(el('p', 'note', 'Önizlemede öğeye tıklayıp sürükleyerek konumunu değiştirebilir, sliderlarla boyutunu (W / H) ve katman sırasını (Z) ayarlayabilirsin. 0 = otomatik boyut.'));
+
+  const row = el('div', 'row');
+  row.append(el('label', 'lab', 'Öğe'));
+  const sel = el('select');
+  const widgets = [
+    ['text', 'Metin (Sözler)'],
+    ['cover', 'Albüm Kapağı'],
+    ['now', 'Şarkı Adı'],
+    ['next', 'Sıradaki Şarkı'],
+    ['ctl', 'Medya Butonları'],
+    ['prog', 'İlerleme Çubuğu'],
+  ];
+  widgets.forEach(([v, l]) => { const o = el('option', null, l); o.value = v; sel.append(o); });
+  sel.value = layoutCurrent;
+  row.append(sel);
+  box.append(row);
+
+  const controls = el('div');
+  box.append(controls);
+
+  function rebuild() {
+    for (let i = ctl.length - 1; i >= 0; i--) {
+      if (controls.contains(ctl[i].row)) ctl.splice(i, 1);
+    }
+    controls.innerHTML = '';
+
+    const k = WIDGET_KEYS[layoutCurrent];
+    layoutAddRange(controls, k.x, 'X (yatay kaydırma)', -500, 500, 1, ' px');
+    layoutAddRange(controls, k.y, 'Y (dikey kaydırma)', -500, 500, 1, ' px');
+    if (k.z) layoutAddRange(controls, k.z, 'Z (katman sırası)', 0, 10, 1, '');
+    if (k.size === 'size') layoutAddRange(controls, 'size', 'Yazı boyutu', 16, 64, 1, ' px');
+
+    if (k.w === 'coverW') {
+      layoutAddRange(controls, 'coverW', 'Kapak genişliği', 40, 400, 1, ' px');
+      layoutAddRange(controls, 'coverH', 'Kapak yüksekliği', 40, 400, 1, ' px');
+    } else if (k.w === 'lyrW') {
+      layoutAddRange(controls, 'lyrW', 'Metin genişliği (0 = oto)', 0, 800, 1, ' px');
+      layoutAddRange(controls, 'lyrH', 'Metin yüksekliği (0 = oto)', 0, 400, 1, ' px');
+    } else if (k.w === 'nowW') {
+      layoutAddRange(controls, 'nowW', 'Genişlik (0 = oto)', 0, 600, 1, ' px');
+      layoutAddRange(controls, 'nowH', 'Yükseklik (0 = oto)', 0, 200, 1, ' px');
+      layoutAddRange(controls, 'nowScale', 'Ölçek', 50, 200, 1, ' %');
+    } else if (k.w === 'nextW') {
+      layoutAddRange(controls, 'nextW', 'Genişlik (0 = oto)', 0, 600, 1, ' px');
+      layoutAddRange(controls, 'nextH', 'Yükseklik (0 = oto)', 0, 200, 1, ' px');
+      layoutAddRange(controls, 'nextScale', 'Ölçek', 50, 200, 1, ' %');
+    } else if (k.w === 'progW') {
+      layoutAddSelect(controls, 'progOrient', 'Yön', [['h', 'Yatay (alt)'], ['vr', 'Dikey (sağ)'], ['vl', 'Dikey (sol)']]);
+      const horiz = cfg.progOrient === 'h';
+      layoutAddRange(controls, 'progW', horiz ? 'Genişlik (0 = tam)' : 'Uzunluk (0 = tam)', 0, 800, 1, ' px');
+      layoutAddRange(controls, 'progH', horiz ? 'Yükseklik' : 'Kalınlık', 1, 12, 1, ' px');
+    }
+
+    if (k.scale === 'ctlScale') {
+      layoutAddRange(controls, 'ctlScale', 'Buton ölçeği', 50, 200, 1, ' %');
+    }
+
+    if (k.align) {
+      layoutAddSelect(controls, 'textV', 'Dikey hizalama', [['top', 'Üst'], ['center', 'Orta'], ['bottom', 'Alt']]);
+      layoutAddSelect(controls, 'textH', 'Yatay hizalama', [['auto', 'Otomatik'], ['left', 'Sol'], ['center', 'Orta'], ['right', 'Sağ']]);
+    }
+
+    const rb = el('button', 'btn danger', 'Bu öğeyi sıfırla');
+    rb.onclick = () => {
+      const patch = { [k.x]: 0, [k.y]: 0 };
+      if (k.z) patch[k.z] = 1;
+      if (k.size === 'size') patch.size = D.size;
+      if (k.w === 'coverW') { patch.coverW = D.coverW; patch.coverH = D.coverH; }
+      if (k.w === 'lyrW') { patch.lyrW = 0; patch.lyrH = 0; }
+      if (k.w === 'nowW') { patch.nowW = 0; patch.nowH = 0; patch.nowScale = 100; }
+      if (k.w === 'nextW') { patch.nextW = 0; patch.nextH = 0; patch.nextScale = 100; }
+      if (k.w === 'progW') { patch.progW = 0; patch.progH = D.progH; patch.progOrient = 'h'; }
+      if (k.scale === 'ctlScale') patch.ctlScale = 100;
+      if (k.align) { patch.textH = 'auto'; patch.textV = 'center'; }
+      applyData(patch);
+      toast('Sıfırlandı');
+    };
+    controls.append(rb);
+
+    refresh();
+  }
+
+  sel.onchange = () => { layoutCurrent = sel.value; rebuild(); };
+  rebuild();
+  setupPreviewDrag();
+  return box;
+}
+
+function setupPreviewDrag() {
+  const pv = $('#pv');
+  if (!pv || pv.dataset.dragSetup) return;
+  pv.dataset.dragSetup = '1';
+
+  const map = [
+    { sel: '.lv-cover', x: 'coverX', y: 'coverY' },
+    { sel: '.lv-lyr', x: 'textX', y: 'textY' },
+    { sel: '.lv-now', x: 'nowX', y: 'nowY' },
+    { sel: '.lv-nxt', x: 'nextX', y: 'nextY' },
+    { sel: '.lv-ctl', x: 'ctlX', y: 'ctlY' },
+    { sel: '.lv-prog', x: 'progX', y: 'progY' },
+  ];
+
+  for (const m of map) {
+    const elm = pv.querySelector(m.sel);
+    if (!elm) continue;
+    elm.addEventListener('pointerdown', (e) => {
+      if (cur !== 'layout') return;
+      if (e.target.closest('button')) return;
+      e.preventDefault();
+      const sx = e.screenX, sy = e.screenY;
+      const ox = cfg[m.x] || 0, oy = cfg[m.y] || 0;
+      try { elm.setPointerCapture(e.pointerId); } catch {}
+      const mv = (ev) => {
+        const nx = Math.max(-500, Math.min(500, Math.round(ox + (ev.screenX - sx))));
+        const ny = Math.max(-500, Math.min(500, Math.round(oy + (ev.screenY - sy))));
+        setLive(m.x, nx); setLive(m.y, ny);
+      };
+      const up = () => {
+        elm.removeEventListener('pointermove', mv);
+        elm.removeEventListener('pointerup', up);
+        api.setCfg({ [m.x]: cfg[m.x], [m.y]: cfg[m.y] });
+      };
+      elm.addEventListener('pointermove', mv);
+      elm.addEventListener('pointerup', up);
+    });
+  }
+}
+
+/* ============ Sekmeler ============ */
+const yn = (k) => (c) => !!c[k];
+const VIS = [['always', 'Her zaman'], ['hover', 'Fare üstündeyken']];
+const TABS = [
+  { id: 'genel', name: 'Genel', items: [
+    { t: 'check', k: 'lyrics', label: 'Sözleri göster (kapalıyken mini oynatıcı)' },
+    { t: 'check', k: 'hoverAll', label: 'Overlay\'i sadece fare üstündeyken göster' },
+    { t: 'check', k: 'dodge', label: 'Fare üstüne gelince karşı tarafa kaç' },
+    { t: 'note', text: 'Kaçma açıkken Ctrl tuşuna basılı tutarak fareyi pencerenin üstüne getirirsen pencere kaçmaz.' },
+    { t: 'h', text: 'Hover belirme / kaybolma' },
+    { t: 'range', k: 'hoverIn', label: 'Belirme süresi', min: 0, max: 2000, step: 50, unit: ' ms' },
+    { t: 'range', k: 'hoverDelay', label: 'Kaybolmadan önce bekle', min: 0, max: 5000, step: 100, unit: ' ms' },
+    { t: 'range', k: 'hoverOut', label: 'Kaybolma süresi', min: 0, max: 2000, step: 50, unit: ' ms' },
+    { t: 'note', text: 'Bu süreler tüm hover seçeneklerine ortaktır. 0 = anında.' },
+    { t: 'range', k: 'offset', label: 'Söz gecikmesi', min: -3000, max: 3000, step: 50, unit: ' ms' },
+    { t: 'check', k: 'autohide', label: 'Müzik yokken gizle' },
+    { t: 'check', k: 'onTop', label: 'Her zaman üstte' },
+    { t: 'check', k: 'openAtLogin', label: 'Windows açılışında başlat' },
+    { t: 'h', text: 'Kısayollar' },
+    { t: 'note', text: 'Ctrl+Alt+L: kilitle / kilidi aç.  Ctrl+Alt+S: bu pencere.  Ctrl+Alt+M: mini oynatıcı / sözler.  [ ve ]: söz gecikmesi 250 ms.' },
+  ] },
+  { id: 'stil', name: 'Stil', items: [
+    { t: 'h', text: 'Yazı' },
+    { t: 'select', k: 'font', label: 'Yazı tipi', font: 1, opts: SLO.FONTS.map((f) => [f, f]) },
+    { t: 'range', k: 'size', label: 'Yazı boyutu', min: 16, max: 64, unit: ' px' },
+    { t: 'check', k: 'bold', label: 'Kalın (Bold)' },
+    { t: 'check', k: 'upper', label: 'BÜTÜN HARFLER BÜYÜK' },
+    { t: 'range', k: 'letter', label: 'Harf aralığı', min: -3, max: 20 },
+    { t: 'range', k: 'lineGap', label: 'Satır aralığı', min: 0, max: 30, unit: ' px' },
+    { t: 'range', k: 'lines', label: 'Görünen satır sayısı', min: 1, max: 7 },
+    { t: 'h', text: 'Renk' },
+    { t: 'select', k: 'colorMode', label: 'Renk modu', opts: [['album', 'Albüm rengi'], ['solid', 'Tek renk'], ['gradient', 'Gradyan'], ['rainbow', 'Gökkuşağı']] },
+    { t: 'color', k: 'color1', label: 'Renk 1', show: (c) => c.colorMode === 'solid' || c.colorMode === 'gradient' },
+    { t: 'color', k: 'color2', label: 'Renk 2', show: (c) => c.colorMode === 'gradient' },
+    { t: 'range', k: 'rainbowSpeed', label: 'Gökkuşağı süresi', min: 2, max: 20, unit: ' sn', show: (c) => c.colorMode === 'rainbow' },
+    { t: 'h', text: 'Efektler' },
+    { t: 'range', k: 'glow', label: 'Parıltı (Glow)', min: 0, max: 100 },
+    { t: 'check', k: 'sparkle', label: 'Işıltı (Sparkle)' },
+    { t: 'range', k: 'outline', label: 'Dış çizgi (Outline)', min: 0, max: 4, step: 0.5, unit: ' px' },
+    { t: 'color', k: 'outlineColor', label: 'Çizgi rengi', show: (c) => c.outline > 0 },
+    { t: 'h', text: 'Arka plan' },
+    { t: 'check', k: 'glass', label: '✨ Glassmorphism (buzlu cam)' },
+    { t: 'range', k: 'glassBlur', label: 'Cam bulanıklığı', min: 0, max: 60, unit: ' px', show: yn('glass') },
+    { t: 'range', k: 'glassSat', label: 'Cam doygunluğu', min: 100, max: 250, unit: '%', show: yn('glass') },
+    { t: 'range', k: 'bg', label: 'Koyuluk', min: 0, max: 100, unit: '%' },
+    { t: 'range', k: 'tint', label: 'Albüm rengi yansıması', min: 0, max: 60, unit: '%' },
+    { t: 'button', label: 'Tamamen şeffaf arka plan yap', fn: () => { applyData({ bg: 0, tint: 0 }); toast('Arka plan şeffaf'); } },
+    { t: 'color', k: 'bgColor', label: 'Arka plan rengi' },
+    { t: 'range', k: 'radius', label: 'Köşe yuvarlaklığı', min: 0, max: 40, unit: ' px' },
+    { t: 'h', text: 'Dış HUD (çerçeve)' },
+    { t: 'check', k: 'hud', label: 'HUD çerçevesini göster' },
+    { t: 'range', k: 'hudSize', label: 'Çerçeve kalınlığı', min: 0, max: 40, step: 1, unit: ' px', show: yn('hud') },
+    { t: 'color', k: 'hudColor', label: 'Çerçeve rengi', show: yn('hud') },
+    { t: 'range', k: 'hudGlow', label: 'Çerçeve parıltısı', min: 0, max: 100, show: yn('hud') },
+  ] },
+  { id: 'layout', name: 'Yerleşim', custom: layoutPane },
+  { id: 'anim', name: 'Animasyon', items: [
+    { t: 'select', k: 'animIn', label: 'Geliş (Come In)', opts: [['none', 'Yok'], ['fade', 'Solma'], ['slide', 'Kaydır'], ['zoom', 'Yakınlaş'], ['blur', 'Bulanıktan netleş'], ['wave', 'Dalga'], ['typewriter', 'Daktilo'], ['scatter', 'Dağılıp toplan']] },
+    { t: 'select', k: 'animMove', label: 'Hareket (Move)', opts: [['none', 'Yok'], ['float', 'Süzülme'], ['breathe', 'Nefes'], ['sway', 'Sallanma'], ['pulse', 'Nabız']] },
+    { t: 'select', k: 'animLeave', label: 'Ayrılış (Leave)', opts: [['none', 'Yok'], ['fade', 'Solma'], ['slideup', 'Yukarı kay'], ['zoom', 'Küçül'], ['blur', 'Bulanıklaş']] },
+    { t: 'range', k: 'animSpeed', label: 'Animasyon hızı', min: 50, max: 200, unit: '%' },
+  ] },
+  { id: 'parti', name: 'Parti', items: [
+    { t: 'check', k: 'party', label: 'Parti modu' },
+    { t: 'range', k: 'partyDensity', label: 'Nota yoğunluğu', min: 10, max: 100, unit: '%', show: yn('party') },
+    { t: 'note', text: 'Çalarken pencerede müzik notaları süzülür, her yeni satırda küçük bir nota patlaması olur ve albüm kapağı hafifçe zıplar.' },
+  ] },
+  { id: 'widget', name: 'Widget', items: [
+    { t: 'check', k: 'wCover', label: 'Albüm kapağı' },
+    { t: 'select', k: 'wCoverShape', label: 'Kapak şekli', opts: [['round', 'Yuvarlak köşe'], ['square', 'Kare'], ['circle', 'Daire']], show: yn('wCover') },
+    { t: 'range', k: 'coverW', label: 'Kapak genişliği', min: 40, max: 400, unit: ' px', show: yn('wCover') },
+    { t: 'range', k: 'coverH', label: 'Kapak yüksekliği', min: 40, max: 400, unit: ' px', show: yn('wCover') },
+    { t: 'range', k: 'miniCover', label: 'Mini mod kapak boyutu', min: 32, max: 72, unit: ' px', show: yn('wCover') },
+    { t: 'check', k: 'wInfo', label: 'Şarkı ve sanatçı adı' },
+    { t: 'check', k: 'wNext', label: 'Sıradaki şarkı ve kalan süre' },
+    { t: 'select', k: 'visInfo', label: 'Ad ve sıradaki şarkı görünürlüğü', opts: VIS, show: (c) => c.wInfo || c.wNext },
+    { t: 'check', k: 'wProg', label: 'İlerleme çubuğu' },
+    { t: 'select', k: 'visProg', label: 'İlerleme çubuğu görünürlüğü', opts: VIS, show: yn('wProg') },
+    { t: 'check', k: 'wCtl', label: 'Medya butonları' },
+    { t: 'select', k: 'visCtl', label: 'Medya butonları görünürlüğü', opts: VIS, show: yn('wCtl') },
+  ] },
+  { id: 'presets', name: 'Hazır Profiller', custom: presetsPane },
+  { id: 'community', name: 'Topluluk', custom: communityPane },
+  { id: 'adv', name: 'Gelişmiş', items: [
+    { t: 'select', k: 'pollMs', label: 'Spotify sorgu aralığı', opts: [[1000, '1 sn'], [2000, '2 sn (önerilen)'], [3000, '3 sn'], [5000, '5 sn']] },
+    { t: 'note', text: 'Sorgu aralığı sadece Spotify ile eşitleme sıklığını belirler; söz akışı aradaki sürede yerel olarak hesaplanır.' },
+    { t: 'custom', build: advancedExtras },
+  ] },
+];
+let cur = 'genel';
+function showTab(id) {
+  cur = id;
+  document.body.classList.toggle('layout-mode', id === 'layout');
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
+  const tab = TABS.find((t) => t.id === id);
+  if (tab.custom) { ctl.length = 0; pane.innerHTML = ''; pane.append(tab.custom()); } else build(tab.items);
+}
+TABS.forEach((t) => { const b = el('button', null, t.name); b.dataset.id = t.id; b.onclick = () => showTab(t.id); $('#tabs').append(b); });
+
+(async () => {
+  cfg = await api.getCfg();
+  view.setConfig(cfg);
+  startDemo(); showTab('genel');
+  api.on('cfg', (c) => { cfg = c; view.setConfig(cfg); refresh(); });
+})();
+</script>
+</body>
+</html>

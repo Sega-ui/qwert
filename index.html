@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
+<title>Söz Overlay</title>
+<link rel="stylesheet" href="view.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; color: #fff;
+    font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; user-select: none; }
+  #panel { position: relative; height: 100%; -webkit-app-region: drag; }
+  #view { height: 100%; }
+  button, input, select, #grip { -webkit-app-region: no-drag; }
+  #bar { position: absolute; top: 6px; right: 10px; display: flex; gap: 4px; align-items: center; opacity: 0;
+    transition: opacity .15s; z-index: 6; }
+  #panel:hover #bar { opacity: 1; }
+  body.locked #bar, body.locked .lv-ctl, body.locked #grip { visibility: hidden; }
+  #bar button { border: 0; background: rgba(255,255,255,.14); color: #fff; border-radius: 6px; min-width: 28px;
+    height: 24px; padding: 0 8px; font: 12px inherit; cursor: pointer; }
+  #bar button:hover { background: rgba(255,255,255,.28); }
+  body.mini #fm, body.mini #fp, body.mini #om, body.mini #off, body.mini #op { display: none; }
+  #off { font-size: 12px; color: rgba(255,255,255,.7); min-width: 52px; text-align: center; }
+  button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  #grip { position: absolute; right: 0; bottom: 0; width: 22px; height: 22px; cursor: nwse-resize; opacity: 0;
+    transition: opacity .15s; z-index: 6;
+    background: linear-gradient(135deg, transparent 55%, rgba(255,255,255,.5) 55% 62%, transparent 62% 72%, rgba(255,255,255,.5) 72% 79%, transparent 79%); }
+  #panel:hover #grip { opacity: .8; }
+  #toast { position: absolute; left: 50%; bottom: 52px; transform: translateX(-50%); background: rgba(0,0,0,.78);
+    padding: 6px 12px; border-radius: 999px; font-size: 12px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 7; }
+  #toast.on { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="panel">
+  <div id="view"></div>
+  <div id="bar">
+    <button id="fm" title="Yazıyı küçült">A−</button><button id="fp" title="Yazıyı büyüt">A+</button>
+    <button id="om" title="Sözleri geciktir ( [ )">⟵</button><span id="off">0 ms</span><button id="op" title="Sözleri öne al ( ] )">⟶</button>
+    <button id="mini" title="Mini oynatıcı / sözler (Ctrl+Alt+M)">Mini</button>
+    <button id="gear" title="Ayarlar (Ctrl+Alt+S)">Ayarlar</button>
+    <button id="lock" title="Kilitle (Ctrl+Alt+L ile aç)">Kilitle</button>
+    <button id="quit" title="Kapat">✕</button>
+  </div>
+  <div id="grip" title="Boyutu değiştir"></div>
+  <div id="toast"></div>
+</div>
+<script src="defaults.js"></script>
+<script src="view.js"></script>
+<script>
+window.addEventListener('error', (e) => { try { api.logError('error', (e.error && e.error.stack) || e.message); } catch {} });
+window.addEventListener('unhandledrejection', (e) => { try { api.logError('unhandledrejection', (e.reason && e.reason.stack) || String(e.reason)); } catch {} });
+
+const $ = (id) => document.getElementById(id);
+const view = LyricsView.create($('view'), { onControl: (a) => api.control(a), onLogin: () => api.login() });
+let cfgNow = { ...SLO.DEFAULTS };
+
+function applyCfg(c) {
+  cfgNow = c; view.setConfig(c);
+  $('off').textContent = (c.offset > 0 ? '+' : '') + c.offset + ' ms';
+  document.body.classList.toggle('mini', !c.lyrics);
+  $('mini').textContent = c.lyrics ? 'Mini' : 'Sözler';
+}
+function patch(p) { return api.setCfg(p).then(applyCfg); }
+
+// 1. Önce dinleyicileri kur (Bağlantı kopsa bile arayüz güncellenebilsin)
+api.on('cfg', applyCfg);
+api.on('status', (s) => view.setStatus(s.state, s.message));
+api.on('playback', (d) => view.setPlayback(d));
+api.on('lyrics', (d) => view.setLyricsFor(d.id, d.synced));
+api.on('cover', (d) => view.setCoverFor(d.id, d.url));
+api.on('next', (d) => view.setNext(d));
+api.on('hover', (v) => view.setHover(v));
+api.on('locked', (v) => document.body.classList.toggle('locked', v));
+let toastT;
+api.on('toast', (t) => { $('toast').textContent = t; $('toast').classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => $('toast').classList.remove('on'), 2600); });
+
+// 2. Sonra ayarları yükle
+(async () => {
+  try {
+    let c = await api.getCfg();
+    if (!c.migrated) {
+      const p = { migrated: 1 };
+      try {
+        const o = JSON.parse(localStorage.getItem('cfg') || 'null');
+        if (o) {
+          if (Number.isFinite(o.size)) p.size = o.size;
+          if (Number.isFinite(o.bg)) p.bg = o.bg;
+          if (Number.isFinite(o.offset)) p.offset = o.offset;
+          if (['slide', 'fade', 'zoom', 'blur', 'none'].includes(o.anim)) p.animIn = o.anim;
+          const m = { white: '#ffffff', green: '#1ed760', pink: '#ff7eb6', blue: '#7ab8ff', yellow: '#ffd666' };
+          if (o.theme === 'album') p.colorMode = 'album';
+          else if (m[o.theme]) { p.colorMode = 'solid'; p.color1 = m[o.theme]; }
+          [['cover', 'wCover'], ['next', 'wNext'], ['ctl', 'wCtl'], ['prog', 'wProg'], ['autohide', 'autohide']].forEach(([a, b]) => { if (o[a] !== undefined) p[b] = o[a] ? 1 : 0; });
+        }
+      } catch {}
+      c = await api.setCfg(p);
+    }
+    applyCfg(c);
+  } catch (err) {
+    console.error("Ayarlar yüklenemedi, varsayılanlar kullanılıyor.", err);
+    applyCfg(SLO.DEFAULTS);
+  }
+})();
+
+$('fm').onclick = () => patch({ size: Math.max(16, cfgNow.size - 2) });
+$('fp').onclick = () => patch({ size: Math.min(64, cfgNow.size + 2) });
+$('om').onclick = () => patch({ offset: cfgNow.offset - 250 });
+$('op').onclick = () => patch({ offset: cfgNow.offset + 250 });
+$('gear').onclick = () => api.openSettings();
+$('mini').onclick = () => api.toggleMini();
+$('lock').onclick = () => api.lock();
+$('quit').onclick = () => api.quit();
+window.addEventListener('keydown', (e) => {
+  if (e.key === '[') patch({ offset: cfgNow.offset - 250 });
+  else if (e.key === ']') patch({ offset: cfgNow.offset + 250 });
+});
+
+$('grip').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  const g = $('grip'), sx = e.screenX, sy = e.screenY, w0 = window.innerWidth, h0 = window.innerHeight;
+  g.setPointerCapture(e.pointerId);
+  const mv = (ev) => api.resize(w0 + ev.screenX - sx, h0 + ev.screenY - sy);
+  const up = () => { g.removeEventListener('pointermove', mv); g.removeEventListener('pointerup', up); api.resizeEnd(); };
+  g.addEventListener('pointermove', mv); g.addEventListener('pointerup', up);
+});
+</script>
+</body>
+</html>

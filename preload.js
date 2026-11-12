@@ -1,0 +1,21 @@
+const { contextBridge, ipcRenderer } = require('electron');
+contextBridge.exposeInMainWorld('api', {
+  on: (channel, fn) => ipcRenderer.on(channel, (_e, data) => fn(data)),
+  login: () => ipcRenderer.send('login'),
+  lock: () => ipcRenderer.send('lock'),
+  quit: () => ipcRenderer.send('quit'),
+  control: (action) => ipcRenderer.send('control', action),
+  resize: (w, h) => ipcRenderer.send('resize', { w, h }),
+  resizeEnd: () => ipcRenderer.send('resize-end'),
+  getCfg: () => ipcRenderer.invoke('cfg:get'),
+  setCfg: (patch) => ipcRenderer.invoke('cfg:set', patch),
+  resetCfg: () => ipcRenderer.invoke('cfg:reset'),
+  openSettings: () => ipcRenderer.send('open-settings'),
+  clipboardWrite: (t) => ipcRenderer.invoke('clip:write', t),
+  clipboardRead: () => ipcRenderer.invoke('clip:read'),
+  openDataDir: () => ipcRenderer.send('open-data-dir'),
+  resetWindow: () => ipcRenderer.send('reset-window'),
+  toggleMini: () => ipcRenderer.send('toggle-mini'),
+  logError: (tag, msg) => ipcRenderer.send('log-error', tag, msg),
+  openLog: () => ipcRenderer.send('open-log'),
+});
